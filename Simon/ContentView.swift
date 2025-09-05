@@ -15,6 +15,9 @@ struct ContentView: View {
         ColorDisplay(color: .blue)
     ]
     @State private var flash = [false, false, false, false]
+    @State private var timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+    @State private var sequence: [Int] = []
+    @State private var index = 0
     var body: some View {
         ZStack {
             Color.black
@@ -54,6 +57,16 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onReceive(timer) { _ in
+            if index < sequence.count {
+                flashColorDisplay(index: sequence[index])
+                index += 1
+            } else {
+                index = 0
+                let next = Int.random(in: 0...3)
+                sequence.append(next)
+            }
+        }
     }
     
     func flashColorDisplay(index: Int) {
