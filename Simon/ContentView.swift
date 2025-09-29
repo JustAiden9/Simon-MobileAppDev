@@ -7,14 +7,12 @@ struct ContentView: View {
         ColorDisplay(color: .yellow),
         ColorDisplay(color: .blue)
     ]
-    @State private var flash = [false, false, false, false]
+    @State private var activeIndex: Int? = nil
     @State private var sequence: [Int] = [] 
     @State private var userIndex: Int = 0
     @State private var isPlayingSequence: Bool = false
     @State private var isGameActive: Bool = false
     @State private var message: String = "Tap Start to play"
-    @State private var justLost: Bool = false
-    @State private var lastScore: Int? = nil
     @AppStorage("highScore") private var highScore: Int = 0
     private let sound = SoundManager.shared
 
@@ -28,17 +26,8 @@ struct ContentView: View {
                     .font(.system(size: 48, weight: .bold))
                     .foregroundStyle(.white)
 
-                Group {
-                    if justLost {
-                        VStack(spacing: 4) {
-                            Text("Wrong! Score: \(lastScore ?? 0)")
-                            Text("Tap Start")
-                        }
-                    } else {
-                        Text(message)
-                    }
-                }
-                .foregroundStyle(.white.opacity(0.8))
+                Text(message)
+                    .foregroundStyle(.white.opacity(0.8))
 
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
@@ -67,11 +56,9 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.white)
 
-                    if !justLost {
-                        Text("High Score: \(highScore)")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
+                    Text("High Score: \(highScore)")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.9))
                 }
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
@@ -83,7 +70,7 @@ struct ContentView: View {
 
     private func tile(_ i: Int) -> some View {
         colorDisplay[i]
-            .opacity(flash[i] ? 1 : 0.4)
+            .opacity(activeIndex == i ? 1 : 0.4)
             .onTapGesture { handleTap(i) }
     }
 
@@ -92,8 +79,6 @@ struct ContentView: View {
         userIndex = 0
         isGameActive = true
         message = "Watch…"
-        justLost = false
-        lastScore = nil
         sound.playStart()
         appendRandomAndPlay()
     }
@@ -104,17 +89,17 @@ struct ContentView: View {
     }
 
     @MainActor
-    private func setFlash(_ i: Int, _ value: Bool) {
+    private func setActive(_ i: Int?) {
         withAnimation(.easeInOut(duration: 0.22)) {
-            flash[i] = value
+            activeIndex = i
         }
     }
 
     private func flashColorDisplay(index: Int) {
-        setFlash(index, true)
+        setActive(index)
         sound.playColor(index: index)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            setFlash(index, false)
+            setActive(nil)
         }
     }
 
@@ -129,11 +114,11 @@ struct ContentView: View {
             if userIndex == sequence.count {
                 // Completed the round
                 isPlayingSequence = true
-                message = "Nice! Watch…"
+                message = "Watch…"
                 sound.playSuccess()
                 userIndex = 0
                 Task {
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try? await Task.sleep(for: .milliseconds(500))
                     appendRandomAndPlay()
                 }
             } else {
@@ -156,12 +141,9 @@ struct ContentView: View {
             }
 
             // Mark loss state for UI
-            justLost = true
-            lastScore = score
-
             isGameActive = false
             isPlayingSequence = false
-            message = "Wrong! Score: \(score). Tap Start"
+            message = "Wrong! Tap Start"
             sequence = []
             userIndex = 0
         }
@@ -174,12 +156,12 @@ struct ContentView: View {
 
         for idx in sequence {
             await MainActor.run {
-                setFlash(idx, true)
+                setActive(idx)
                 sound.playColor(index: idx)
             }
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            await MainActor.run { setFlash(idx, false) }
-            try? await Task.sleep(nanoseconds: 160_000_000)
+            try? await Task.sleep(for: .milliseconds(300))
+            await MainActor.run { setActive(nil) }
+            try? await Task.sleep(for: .milliseconds(160))
         }
 
         isPlayingSequence = false
