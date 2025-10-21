@@ -12,6 +12,7 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
     static let shared = SoundManager()
     private var players: [AVAudioPlayer] = []
     
+    // Play any sound file
     func play(name: String, ext: String = "wav", subdirectory: String? = "sounds", volume: Float = 1.0) {
         var url: URL?
         if let sub = subdirectory {
@@ -29,28 +30,19 @@ final class SoundManager: NSObject, AVAudioPlayerDelegate {
             player.play()
         }
     }
-
     func playColor(index: Int) {
         play(name: "\(index)", subdirectory: nil)
     }
-
     func playStart() {
-        play(name: "start")
+        play(name: "Start")
     }
-
     func playSuccess() {
         play(name: "success")
     }
-
-    func playWrong() {
-        play(name: "wrong")
-    }
-
     func playLose() {
-        play(name: "lose")
+        play(name: "Lose")
     }
-
     func playHighScore() {
-        play(name: "highscore")
+        play(name: "HighScore")
     }
 }
