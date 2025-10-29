@@ -26,13 +26,13 @@ struct ContentView: View {
     // True when game is running
     @State private var isGameActive: Bool = false
     // Status message shown to player
-    @State private var message: String = "Tap Start to play"
+    @State private var message: String = "testValue"
     // Best score ever
-    @AppStorage("highScore") private var highScore: Int = 0
     @State private var showStartMenu: Bool = true
     @State private var showEndMenu: Bool = false
     @State private var finalScore: Int = 0
     @State private var isNewHighScore: Bool = false
+    @AppStorage("highScore") private var highScore: Int = 0
     
     private let sound = SoundManager.shared
 
@@ -146,53 +146,64 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
     }
-
-    // Create a tile view with highlight and tap handling
+    
+    //START OF FUNCTIONS
+    // Creates a single colored tile for the game.
+    // Highlights the tile if it is currently active, and handles taps by calling the tap handler.
     private func tile(_ i: Int) -> some View {
+        // Pick the correct color tile from the array
         colorDisplay[i]
             .opacity(activeIndex == i ? 1 : 0.4)
             .onTapGesture { handleTap(i) }
     }
 
-    // Start a new game
+    // Starts a new Simon game.
+    // Resets the sequence, sets the game as active, updates the message, and plays the start sound.
     private func startGame() {
+        // Reset the sequence to start a new game
         sequence = []
         userIndex = 0
         isGameActive = true
         message = "Watch…"
         sound.playStart()
-        appendRandomAndPlay()
+        RandomAndPlay()
     }
 
-    // Add random color to sequence and play it
-    private func appendRandomAndPlay() {
+    // Adds a random color to the sequence, then plays the full sequence for the player to watch.
+    private func RandomAndPlay() {
+        // Add a new random color (represented by a number 0-3) to the sequence
         sequence.append(Int.random(in: 0...3))
         Task { await playSequence() }
     }
 
-    // Light up a tile
+    // Changes which tile is currently highlighted ("lit up") on the board, with animation.
+    // If nil is passed, no tile is highlighted.
     @MainActor
     private func setActive(_ i: Int?) {
+        // Highlight the tile with a smooth animation
         withAnimation(.easeInOut(duration: 0.22)) {
             activeIndex = i
         }
     }
 
-    // Flash a tile with sound
-    private func flashColorDisplay(index: Int) {
-        setActive(index)
-        sound.playColor(index: index)
+    // Temporarily flashes a tile and plays its sound.
+    // The highlight turns off automatically after a quick pause.
+    private func flashColorDisplay(index: Int) { //index: Int = the color that we stated at the very top
+        setActive(index) // < color
+        sound.playColor(index: index) // color corresponding to sound color
+        // Turn off the highlight shortly after lighting up the tile
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             setActive(nil)
         }
     }
 
-    // Handle player tapping a tile
+    // Handles when the player taps a tile.
+    // Checks if the tap is correct; if so, moves to the next step or round. If wrong, ends the game and shows the end menu.
     private func handleTap(_ i: Int) {
-        guard isGameActive, !isPlayingSequence, !sequence.isEmpty else { return }
-
+        guard isGameActive, !isPlayingSequence, !sequence.isEmpty else { return } // Guard is a easy way to tell your code if all of these are true you can continue. It is like if or else but it allows me to shrink the if/else code down.
         flashColorDisplay(index: i)
-
+        // 'userIndex' tracks how many correct taps the player has made so far
+        // 'sequence[userIndex]' gets the expected color at the current step
         if i == sequence[userIndex] {
             // Correct tile
             userIndex += 1
@@ -204,7 +215,7 @@ struct ContentView: View {
                 userIndex = 0
                 Task {
                     try? await Task.sleep(for: .milliseconds(500))
-                    appendRandomAndPlay()
+                    RandomAndPlay()
                 }
             } else {
                 // Keep going
@@ -212,23 +223,22 @@ struct ContentView: View {
             }
         } else {
             // Wrong tile - game over
+            // Calculate score: subtract 1 since the last tap was wrong; never go below 0
             let score = max(sequence.count - 1, 0)
             finalScore = score
-            
             if score > highScore {
                 highScore = score
                 isNewHighScore = true
                 sound.playHighScore()
             } else {
-                isNewHighScore = false
+                isNewHighScore = false // if your current score is lower than highscore it will not update
                 sound.playLose()
             }
-
             isGameActive = false
             isPlayingSequence = false
             message = "Wrong! Tap Start"
             sequence = []
-            userIndex = 0
+            userIndex = 0 // reset colors
             
             // Show end menu
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -237,18 +247,20 @@ struct ContentView: View {
         }
     }
 
-    // Play the full sequence to the player
+    // Shows the current color sequence to the player by lighting up each tile one after another, with sounds.
+    // Runs asynchronously to handle the timing of each step.
     private func playSequence() async {
         isPlayingSequence = true
-        userIndex = 0
+        userIndex = 0 // start at 0
         await MainActor.run { message = "Watch…" }
 
+        // 'idx' is the index of the tile (0-3) to light up at this step in the sequence
         for idx in sequence {
             await MainActor.run {
                 setActive(idx)
                 sound.playColor(index: idx)
             }
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(300)) // we have to wait to allow the human to see the colors, if we did not have this the app would go to fast and we would not be able to see the colors. 
             await MainActor.run { setActive(nil) }
             try? await Task.sleep(for: .milliseconds(160))
         }
